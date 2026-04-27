@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+package federated_ai;
+
+// ══════════════════════════════════════════════════════════════
+// 联邦学习 (Federated Learning)
+// ══════════════════════════════════════════════════════════════
+
+message VectorUpdate {
+    string client_id = 1;
+    uint32 round = 2;
+    repeated float weights = 3;  // 展平的模型权重
+    uint32 num_samples = 4;       // 本地样本数（FedAvg加权用）
+    map<string, float> metrics = 5;
+    string timestamp = 6;
+    string signature = 7;         // 客户端签名（防篡改）
+}
+
+message AggregationRequest {
+    uint32 round = 1;
+}
+
+message AggregationResult {
+    uint32 round = 1;
+    repeated float global_weights = 2;
+    uint32 num_participants = 3;
+    float loss = 4;
+    string merkle_root = 5;      // 聚合结果的Merkle根
+    string audit_hash = 6;       // 区块链审计哈希
+}
+
+message ClientRegistration {
+    string client_id = 1;
+    string institution = 2;
+    string domain = 3;           // 领域：hedge_fund / medical / manufacturing / culture
+    uint32 data_size = 4;
+    string public_key = 5;       // 用于签名验证
+}
+
+message RegisterResponse {
+    bool success = 1;
+    string node_id = 2;
+    string assigned_role = 3;    // "data_owner" / "compute_node"
+}
+
+// ══════════════════════════════════════════════════════════════
+// 联邦 RAG (Retrieval-Augmented Generation)
+// ══════════════════════════════════════════════════════════════
+
+message RAGQuery {
+    string query_id = 1;
+    string question = 2;
+    string client_id = 3;
+    uint32 top_k = 4;
+    bool include_citations = 5;
+    bool privacy_mode = 6;       // true = 不传原始文本，只传embedding
+}
+
+message RAGResult {
+    string query_id = 1;
+    string answer = 2;
+    repeated Citation citations = 3;
+    float hallucination_risk = 4; // 幻觉风险评分 [0,1]
+    bool defense_triggered = 5;   // 是否触发了幻觉防御
+    string defense_detail = 6;
+}
+
+message Citation {
+    string doc_id = 1;
+    string text_snippet = 2;
+    float relevance_score = 3;
+    string source_node = 4;      // 来自哪个联邦节点
+}
+
+message IndexDocument {
+    string doc_id = 1;
+    string text = 2;
+    map<string, string> metadata = 3;  // 标题、来源、日期等
+    string client_id = 4;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 联邦 CoT (Chain-of-Thought)
+// ══════════════════════════════════════════════════════════════
+
+message CoTThink {
+    string task_id = 1;
+    string task = 2;
+    string client_id = 3;
+    uint32 depth = 4;            // 推理深度
+    bool expose_intermediate = 5; // 是否暴露中间推理步骤
+}
+
+message CoTThought {
+    string thought_id = 1;
+    string content = 2;          // 推理内容
+    string reasoning_type = 3;    // "deductive" / "inductive" / "abductive"
+    float confidence = 4;
+    bool is_final = 5;
+    string parent_thought_id = 6; // 父推理节点（树结构）
+}
+
+message CoTVote {
+    string task_id = 1;
+    repeated string thought_ids = 2;
+    map<string, uint32> votes = 3;  // thought_id -> vote_count
+    string consensus_conclusion = 4;
+    float consensus_strength = 5;    // 共识强度 [0,1]
+}
+
+// ══════════════════════════════════════════════════════════════
+// 幻觉防御 (Hallucination Defense)
+// ══════════════════════════════════════════════════════════════
+
+message HallucinationCheck {
+    string claim_id = 1;
+    string claim = 2;            // 待检测的关键断言
+    string context = 3;          // 答案上下文
+    string client_id = 4;
+    float threshold = 5;         // 可信度阈值
+}
+
+message HallucinationResult {
+    string claim_id = 1;
+    bool is_hallucination = 2;
+    float risk_score = 3;        // [0,1]，越高越可能是幻觉
+    string verdict = 4;           // "verified" / "uncertain" / "hallucinated"
+    repeated SupportingEvidence evidence = 5;
+    string defense_action = 6;    // "accept" / "flag" / "reject"
+}
+
+message SupportingEvidence {
+    string doc_id = 1;
+    string evidence_text = 2;
+    float similarity = 3;
+    string source = 4;           // "vector_db" / "cross_node_vote" / "self_consistency"
+}
+
+message ConsistencyCheck {
+    string task_id = 1;
+    repeated string answers = 2; // 同一问题的多次采样答案
+    repeated float temperatures = 3;
+}
+
+message ConsistencyResult {
+    string task_id = 1;
+    float consistency_score = 2;  // [0,1]
+    bool passes = 3;
+    string most_common_answer = 4;
+    repeated string dissenting_answers = 5;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 审计 (Audit)
+// ══════════════════════════════════════════════════════════════
+
+message AuditEntry {
+    uint64 sequence = 1;
+    string timestamp = 2;
+    string event_type = 3;       // "FL_UPDATE" / "RAG_QUERY" / "COT_VOTE" / "HALLUCINATION_DEFENSE"
+    string node_id = 4;
+    string payload_hash = 5;     // 事件内容的SHA-256
+    string prev_hash = 6;        // 前一条记录的哈希
+    string merkle_proof = 7;     // 可选：Merkle证明
+}
+
+message AuditQuery {
+    string event_type = 1;
+    string start_time = 2;
+    string end_time = 3;
+    string node_id = 4;
+    uint32 limit = 5;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 智能体 (Agent)
+// ══════════════════════════════════════════════════════════════
+
+message AgentTask {
+    string task_id = 1;
+    string description = 2;
+    repeated ToolCall tools = 3;  // 允许使用的工具
+    uint32 max_steps = 4;         // 最大步数限制
+}
+
+message ToolCall {
+    string tool_name = 1;        // "rag" / "cot" / "fed_learn" / "vector_search"
+    map<string, string> params = 3;
+}
+
+message AgentResult {
+    string task_id = 1;
+    bool success = 2;
+    string result = 3;
+    repeated ToolCall history = 4; // 工具调用历史
+    repeated string reflections = 5; // 反思记录
+    float overall_confidence = 6;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 服务定义
+// ══════════════════════════════════════════════════════════════
+
+service FederatedLearning {
+    rpc RegisterNode(ClientRegistration) returns (RegisterResponse);
+    rpc SendUpdate(stream VectorUpdate) returns (AggregationResult);
+    rpc GetGlobalWeights(AggregationRequest) returns (AggregationResult);
+    rpc GetAuditTrail(AuditQuery) returns (stream AuditEntry);
+}
+
+service FederatedRAG {
+    rpc IndexDocument(IndexDocument) returns (stream RAGResult);
+    rpc Query(RAGQuery) returns (RAGResult);
+    rpc BatchQuery(stream RAGQuery) returns (stream RAGResult);
+}
+
+service FederatedCoT {
+    rpc Think(stream CoTThink) returns (stream CoTThought);
+    rpc Vote(CoTVote) returns (ConsistencyResult);
+}
+
+service HallucinationDefense {
+    rpc CheckClaim(HallucinationCheck) returns (HallucinationResult);
+    rpc CheckConsistency(ConsistencyCheck) returns (ConsistencyResult);
+    rpc BatchCheck(stream HallucinationCheck) returns (stream HallucinationResult);
+}
+
+service AgentOrchestrator {
+    rpc Execute(AgentTask) returns (AgentResult);
+    rpc Plan(AgentTask) returns (stream CoTThought);  // 规划过程流式输出
+}
