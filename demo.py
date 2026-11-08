@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 federated-ai-platform — Python 核心演示
 联邦智能计算平台 · 自研HNSW · 联邦FL · RAG · CoT · Agent · 幻觉防御
